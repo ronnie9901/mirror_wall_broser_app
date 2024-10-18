@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:provider/provider.dart';
+import 'package:get/get.dart';
+import 'package:mirror_wall_broser_app/view/radiobotton.dart';
 
-import '../controller/controller.dart';
 
-Future<void>? refreshWeb(SearchProvider searchProviderTrue) {
+Future<void>? refreshWeb(SearchController controller) {
   return webViewController?.loadUrl(
     urlRequest: URLRequest(
-      url: WebUri(searchProviderTrue.setSearchEngine),
+      url: WebUri(controller.setSearch.value),
     ),
   );
 }
@@ -23,10 +23,8 @@ class HomePage extends StatelessWidget {
     double width = MediaQuery.of(context).size.width;
     double height = MediaQuery.of(context).size.height;
 
-    SearchProvider searchProviderFalse =
-        Provider.of<SearchProvider>(context, listen: false);
-    SearchProvider searchProviderTrue =
-        Provider.of<SearchProvider>(context, listen: true);
+    // Use GetX to get the controller
+    final SearchController controller = Get.find<SearchController>();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -43,18 +41,31 @@ class HomePage extends StatelessWidget {
         bottom: PreferredSize(
           preferredSize: Size(width, 70),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
             child: TextField(
-              controller: txtSearch,
-              onSubmitted: (value) {
-                if (value.isNotEmpty) {
-                  searchProviderFalse.getSearchEngineUrl(value);
-                  refreshWeb(searchProviderTrue);
-                }
-              },
-              decoration: buildInputDecoration(),
-            ),
+                controller: txtSearch,
+                onSubmitted: (value) {
+                  if (value.isNotEmpty) {
+                    controller.getSearchEngineUrl(value);
+                    refreshWeb(controller);
+                  }
+                },
+                decoration: InputDecoration(
+                  filled: true,
+                  prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide(color: Colors.blue.shade300, width: 1.5),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  hintText: "Search here...",
+                  hintStyle: const TextStyle(color: Colors.grey),
+                )),
           ),
         ),
       ),
@@ -98,11 +109,11 @@ class HomePage extends StatelessWidget {
               ),
               InkWell(
                 onTap: () {
-                  refreshWeb(searchProviderTrue);
+                  refreshWeb(controller);
                 },
                 child: ListTile(
                   leading: Icon(Icons.refresh),
-                  title: Text('refresh'),
+                  title: Text('Refresh'),
                 ),
               ),
               InkWell(
@@ -127,37 +138,31 @@ class HomePage extends StatelessWidget {
                                 ),
                               ),
                               Expanded(
-                                child: ListView.builder(
-                                  itemCount:
-                                      searchProviderTrue.userHistory.length,
+                                child: Obx(() => ListView.builder(
+                                  itemCount: controller.userHistory.length,
                                   itemBuilder: (context, index) {
-                                    final data =
-                                        searchProviderTrue.userHistory[index];
+                                    final data = controller.userHistory[index];
                                     final url = data.split('---').first;
                                     final search = data.split('---').last;
                                     return ListTile(
                                       onTap: () {
                                         txtSearch.text = search;
                                         webViewController?.loadUrl(
-                                            urlRequest:
-                                                URLRequest(url: WebUri(url)));
+                                            urlRequest: URLRequest(url: WebUri(url)));
                                         Navigator.pop(context);
                                       },
                                       title: Text(search),
                                       subtitle: Text(url,
-                                          style: TextStyle(
-                                              color: Colors.grey.shade600)),
+                                          style: TextStyle(color: Colors.grey.shade600)),
                                       trailing: IconButton(
                                         onPressed: () {
-                                          searchProviderFalse
-                                              .deleteFromHistory(index);
+                                          controller.deleteFromHistory(index);
                                         },
-                                        icon: const Icon(Icons.delete,
-                                            color: Colors.black),
+                                        icon: const Icon(Icons.delete, color: Colors.black),
                                       ),
                                     );
                                   },
-                                ),
+                                )),
                               ),
                             ],
                           ),
@@ -168,7 +173,7 @@ class HomePage extends StatelessWidget {
                 },
                 child: ListTile(
                   leading: Icon(Icons.history),
-                  title: Text('Hostory'),
+                  title: Text('History'),
                 ),
               ),
               ListTile(
@@ -181,93 +186,39 @@ class HomePage extends StatelessWidget {
       ),
       body: Column(
         children: [
-          (searchProviderTrue.isLoading)
+          Obx(() => controller.isLoading.value
               ? const LinearProgressIndicator(color: Colors.blue)
-              : const SizedBox.shrink(),
+              : const SizedBox.shrink()),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(top: 10),
               child: InAppWebView(
-                initialUrlRequest:
-                    URLRequest(url: WebUri(searchProviderTrue.setSearchEngine)),
+                initialUrlRequest: URLRequest(url: WebUri(controller.setSearch.value)),
                 onWebViewCreated: (controller) {
                   webViewController = controller;
                 },
                 onLoadStart: (controller, url) {
-                  searchProviderFalse.updateLoadingStatus(true);
+                  this.controller.updateLoading(true);
                 },
                 onLoadStop: (controller, url) {
-                  searchProviderFalse.updateLoadingStatus(false);
-                  String query = txtSearch.text != ""
-                      ? txtSearch.text
-                      : searchProviderTrue.selectedSearchEngine;
-                  searchProviderFalse.addToHistory(url.toString(), query);
+                  this.controller.updateLoading(false);
+                  String query = txtSearch.text != "" ? txtSearch.text : controller.search.value;
+                  this.controller.addToHistory(url.toString(), query);
                 },
               ),
             ),
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.grey.shade100,
-        selectedItemColor: Colors.blue.shade700,
-        unselectedItemColor: Colors.grey.shade600,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.bookmark_add_outlined), label: 'Bookmarks'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.arrow_back_ios), label: 'Back'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.arrow_forward_ios), label: 'Forward'),
-        ],
-        onTap: (index) async {
-          if (index == 0) {
-            searchProviderFalse.getSearchEngineUrl("");
-            txtSearch.clear();
-            refreshWeb(searchProviderTrue);
-          } else if (index == 2) {
-            if (await webViewController?.canGoBack() ?? false) {
-              webViewController?.goBack();
-            }
-          } else if (index == 3) {
-            if (await webViewController?.canGoForward() ?? false) {
-              webViewController?.goForward();
-            }
-          }
-        },
-      ),
+      bottomNavigationBar: buildBottomNavigationBar(controller),
     );
   }
 
-  void showSearchEngineDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String query = txtSearch.text;
-        return AlertDialog(
-          title: const Text("Select Search Engine",
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              MyRadioTile(title: "Google", query: query),
-              MyRadioTile(title: "Yahoo", query: query),
-              MyRadioTile(title: "Bing", query: query),
-              MyRadioTile(title: "DuckDuckGo", query: query),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void showHistoryDialog(
-    BuildContext context,
-    double height,
-    SearchProvider searchProviderTrue,
-    SearchProvider searchProviderFalse,
-  ) {
+  void showDialogBox(
+      BuildContext context,
+      double height,
+      SearchController controller,
+      ) {
     showDialog(
       barrierDismissible: false,
       context: context,
@@ -288,10 +239,10 @@ class HomePage extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: searchProviderTrue.userHistory.length,
+                  child: Obx(() => ListView.builder(
+                    itemCount: controller.userHistory.length,
                     itemBuilder: (context, index) {
-                      final data = searchProviderTrue.userHistory[index];
+                      final data = controller.userHistory[index];
                       final url = data.split('---').first;
                       final search = data.split('---').last;
                       return ListTile(
@@ -306,64 +257,18 @@ class HomePage extends StatelessWidget {
                             style: TextStyle(color: Colors.grey.shade600)),
                         trailing: IconButton(
                           onPressed: () {
-                            searchProviderFalse.deleteFromHistory(index);
+
                           },
                           icon: const Icon(Icons.delete, color: Colors.red),
                         ),
                       );
                     },
-                  ),
+                  )),
                 ),
               ],
             ),
           ),
         );
-      },
-    );
-  }
-}
-
-InputDecoration buildInputDecoration() {
-  return InputDecoration(
-    filled: true,
-    prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
-    fillColor: Colors.white,
-    contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(15),
-      borderSide: BorderSide(color: Colors.blue.shade300, width: 1.5),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(15),
-      borderSide: BorderSide(color: Colors.grey.shade300),
-    ),
-    hintText: "Search here...",
-    hintStyle: const TextStyle(color: Colors.grey),
-  );
-}
-
-class MyRadioTile extends StatelessWidget {
-  final String title;
-  final String query;
-
-  const MyRadioTile({super.key, required this.title, required this.query});
-
-  @override
-  Widget build(BuildContext context) {
-    SearchProvider searchProviderFalse =
-        Provider.of<SearchProvider>(context, listen: false);
-    SearchProvider searchProviderTrue =
-        Provider.of<SearchProvider>(context, listen: true);
-
-    return RadioListTile<String>(
-      title: Text(title, style: const TextStyle(fontSize: 16)),
-      value: title,
-      groupValue: searchProviderTrue.selectedSearchEngine,
-      onChanged: (value) {
-        searchProviderFalse.changeSearchEngine(value!);
-        searchProviderFalse.getSearchEngineUrl(query);
-        refreshWeb(searchProviderTrue);
-        Navigator.pop(context);
       },
     );
   }
